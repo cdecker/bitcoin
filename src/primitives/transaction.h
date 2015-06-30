@@ -222,6 +222,8 @@ public:
         return hash;
     }
 
+    const uint256 GetNormalizedHash() const;
+
     // Return sum of txouts.
     CAmount GetValueOut() const;
     // GetValueIn() is a method on CCoinsViewCache, because

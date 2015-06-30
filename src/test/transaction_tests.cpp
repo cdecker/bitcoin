@@ -377,4 +377,58 @@ BOOST_AUTO_TEST_CASE(test_IsStandard)
     BOOST_CHECK(!IsStandardTx(t, reason));
 }
 
+BOOST_AUTO_TEST_CASE(test_normalizedTransactionId)
+{
+	LOCK(cs_main);
+	// Recreating transaction 4385fcf8b14497d0659adccfe06ae7e38e0b5dc95ff8a13d7c62035994a0cd79
+	CMutableTransaction t1;
+	t1.nVersion = 1;
+	t1.vin.resize(1);
+	t1.vin[0].prevout.hash = uint256S("0x12b5633bad1f9c167d523ad1aa1947b2732a865bf5414eab2f9e5ae5d5c191ba");
+	t1.vin[0].prevout.n = 0;
+	t1.vin[0].scriptSig << ParseHex("3044022041d56d649e3ca8a06ffc10dbc6ba37cb958d1177cc8a155e83d0646cd5852634022047fd6a02e26b00de9f60fb61326856e66d7a0d5e2bc9d01fb95f689fc705c04b01");
+
+	t1.vout.resize(1);
+	t1.vout[0].nValue = 1*COIN;
+	t1.vout[0].scriptPubKey = CScript() << ParseHex("04fe1b9ccf732e1f6b760c5ed3152388eeeadd4a073e621f741eb157e6a62e3547c8e939abbd6a513bf3a1fbe28f9ea85a4e64c526702435d726f7ff14da40bae4") << OP_CHECKSIG;
+
+	BOOST_CHECK_EQUAL(CTransaction(t1).GetHash().GetHex(), "4385fcf8b14497d0659adccfe06ae7e38e0b5dc95ff8a13d7c62035994a0cd79");
+	BOOST_CHECK_EQUAL(
+			CTransaction(t1).GetNormalizedHash().GetHex(),
+			"48b5b698c8646e0bc89381cc936a3cb859254607ef12974e1f4d728a12a5d416"
+	);
+
+	// Now malleate the scriptsig and see the hash not change
+	t1.vin[0].scriptSig << std::vector<unsigned char>(65, 3);
+	size_t a = t1.vin.size();
+	BOOST_CHECK_EQUAL(
+			CTransaction(t1).GetNormalizedHash().GetHex(),
+			"48b5b698c8646e0bc89381cc936a3cb859254607ef12974e1f4d728a12a5d416"
+	);
+
+	// Now check a coinbase transaction
+	// For this test we use transaction 4a5e1e4baab89f3a32518a88c31bc87f618f76673e2cc77ab2127b7afdeda33b
+	std::vector<unsigned char> extraNonce = ParseHex("04ffff001d0104455468652054696d65732030332f4a616e2f32303039204368616e63656c6c6f72206f6e206272696e6b206f66207365636f6e64206261696c6f757420666f722062616e6b73");
+	CMutableTransaction t2;
+	t2.vin.resize(1);
+	t2.vin[0].prevout.SetNull();
+	t2.vin[0].scriptSig = CScript();
+	t2.vin[0].scriptSig.assign(extraNonce.begin(), extraNonce.end());
+	t2.vout.resize(1);
+	t2.vout[0].nValue = 50*COIN;
+	t2.vout[0].scriptPubKey << ParseHex("04678afdb0fe5548271967f1a67130b7105cd6a828e03909a67962e0ea1f61deb649f6bc3f4cef38c4f35504e51ec112de5c384df7ba0b8d578a4c702b6bf11d5f") << OP_CHECKSIG;
+	BOOST_CHECK_EQUAL(CTransaction(t2).GetHash().GetHex(), "4a5e1e4baab89f3a32518a88c31bc87f618f76673e2cc77ab2127b7afdeda33b");
+	BOOST_CHECK_EQUAL(
+			CTransaction(t2).GetNormalizedHash().GetHex(),
+			"4a5e1e4baab89f3a32518a88c31bc87f618f76673e2cc77ab2127b7afdeda33b"
+	);
+
+	// And changing the scriptSig we get another normalized hash
+	t2.vin[0].scriptSig = CScript(std::vector<unsigned char>(65, 'B'));
+	BOOST_CHECK_EQUAL(
+			CTransaction(t2).GetNormalizedHash().GetHex(),
+			"0b4e2bb0e2e7526c2ac6deb4867000e13d5139b5a36e39bee2e7e3f86a03b5a8"
+	);
+}
+
 BOOST_AUTO_TEST_SUITE_END()
