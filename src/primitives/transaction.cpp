@@ -8,6 +8,7 @@
 #include "hash.h"
 #include "tinyformat.h"
 #include "utilstrencodings.h"
+#include "script/interpreter.h"
 
 std::string COutPoint::ToString() const
 {
@@ -70,6 +71,25 @@ uint256 CMutableTransaction::GetHash() const
 void CTransaction::UpdateHash() const
 {
     *const_cast<uint256*>(&hash) = SerializeHash(*this);
+}
+
+const uint256 CTransaction::GetNormalizedHash() const
+{
+    // Coinbase transactions cannot be malleated and may not change after
+    // publication. We cannot zero out the scripts, otherwise we get collisions
+    // among coinbase transactions by the same miner.
+    if(IsCoinBase()){
+        return this->GetHash();
+    }else{
+        CMutableTransaction t(*this);
+        // Replace scriptSigs in inputs with empty strings
+        for (unsigned int i=0; i<t.vin.size(); i++)
+            t.vin[i].scriptSig = CScript();
+
+        CHashWriter ss(SER_GETHASH, 0);
+        ss << t;
+        return ss.GetHash();
+    }
 }
 
 CTransaction::CTransaction() : nVersion(CTransaction::CURRENT_VERSION), vin(), vout(), nLockTime(0) { }

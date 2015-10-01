@@ -86,6 +86,9 @@ public:
     //! as new tx version will probably only be introduced at certain heights
     int nVersion;
 
+    //! normalized transaction id
+    uint256 normTxId;
+
     void FromTx(const CTransaction &tx, int nHeightIn) {
         fCoinBase = tx.IsCoinBase();
         vout = tx.vout;
@@ -172,6 +175,8 @@ public:
                 nSize += ::GetSerializeSize(CTxOutCompressor(REF(vout[i])), nType, nVersion);
         // height
         nSize += ::GetSerializeSize(VARINT(nHeight), nType, nVersion);
+        if(this->nVersion > 1)
+        	nSize += ::GetSerializeSize(FLATDATA(normTxId), nType, nVersion);
         return nSize;
     }
 
@@ -202,6 +207,9 @@ public:
         }
         // coinbase height
         ::Serialize(s, VARINT(nHeight), nType, nVersion);
+
+        if(this->nVersion > 1)
+        	::Serialize(s, FLATDATA(normTxId), nType, nVersion);
     }
 
     template<typename Stream>
@@ -235,6 +243,9 @@ public:
         }
         // coinbase height
         ::Unserialize(s, VARINT(nHeight), nType, nVersion);
+
+        if(this->nVersion > 1)
+        	::Unserialize(s, FLATDATA(normTxId), nType, nVersion);
         Cleanup();
     }
 
