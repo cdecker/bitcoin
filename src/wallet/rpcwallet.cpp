@@ -2344,6 +2344,8 @@ UniValue listunspent(const UniValue& params, bool fHelp)
             if (pwalletMain->mapAddressBook.count(address))
                 entry.push_back(Pair("account", pwalletMain->mapAddressBook[address].name));
         }
+	if (out.tx->nVersion >= 2)
+            entry.push_back(Pair("normalizedId", out.tx->GetNormalizedHash().GetHex()));
         entry.push_back(Pair("scriptPubKey", HexStr(pk.begin(), pk.end())));
         if (pk.IsPayToScriptHash()) {
             CTxDestination address;

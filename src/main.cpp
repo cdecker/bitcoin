@@ -932,6 +932,16 @@ bool AcceptToMemoryPool(CTxMemPool& pool, CValidationState &state, const CTransa
             return state.DoS(0, false, REJECT_NONSTANDARD, "too-long-mempool-chain", false, errString);
         }
 
+        // Annotate the transaction with the normalized outpoints so we can
+        // later normalize the transaction for use with OP_CHECKSIGEX.
+        BOOST_FOREACH(const CTxIn in, tx.vin){
+            CCoins coins;
+            view.GetCoins(in.prevout.hash, coins);
+            // If the previous output was above version 2 we may reference it using the normalized hash.
+            const COutPoint out(coins.nVersion >= 2 ? coins.normTxId : in.prevout.hash, in.prevout.n);
+            tx.vNormOutPoint.push_back(out);
+        }
+
         // Check against previous transactions
         // This is done last to help prevent CPU exhaustion denial-of-service attacks.
         if (!CheckInputs(tx, state, view, true, STANDARD_SCRIPT_VERIFY_FLAGS, true))
@@ -1790,6 +1800,17 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
             if (!CheckInputs(tx, state, view, fScriptChecks, flags, false, nScriptCheckThreads ? &vChecks : NULL))
                 return error("ConnectBlock(): CheckInputs on %s failed with %s",
                     tx.GetHash().ToString(), FormatStateMessage(state));
+
+            // Since we have the cached view filled with the coins for this tx we fetch them and add the normalized ids to the tx
+            tx.vNormOutPoint.clear();
+            BOOST_FOREACH(const CTxIn in, tx.vin) {
+                CCoins coins;
+                view.GetCoins(in.prevout.hash, coins);
+                // If the previous output was above version 2 we may reference it using the normalized hash.
+                const COutPoint out(coins.nVersion >= 2 ? coins.normTxId : in.prevout.hash,	in.prevout.n);
+                tx.vNormOutPoint.push_back(out);
+            }
+
             control.Add(vChecks);
         }
 

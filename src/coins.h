@@ -95,6 +95,8 @@ public:
         nHeight = nHeightIn;
         nVersion = tx.nVersion;
         ClearUnspendable();
+        if (nVersion >= 2)
+            normTxId = tx.GetNormalizedHash();
     }
 
     //! construct a CCoins from a CTransaction, at a given height
@@ -133,6 +135,7 @@ public:
         to.vout.swap(vout);
         std::swap(to.nHeight, nHeight);
         std::swap(to.nVersion, nVersion);
+        std::swap(to.normTxId, normTxId);
     }
 
     //! equality test

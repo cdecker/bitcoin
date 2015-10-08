@@ -61,11 +61,19 @@ std::string CTxOut::ToString() const
 }
 
 CMutableTransaction::CMutableTransaction() : nVersion(CTransaction::CURRENT_VERSION), nLockTime(0) {}
-CMutableTransaction::CMutableTransaction(const CTransaction& tx) : nVersion(tx.nVersion), vin(tx.vin), vout(tx.vout), nLockTime(tx.nLockTime) {}
+CMutableTransaction::CMutableTransaction(const CTransaction& tx) : nVersion(tx.nVersion), vin(tx.vin), vout(tx.vout), nLockTime(tx.nLockTime), vNormOutPoint(tx.vNormOutPoint) {}
 
 uint256 CMutableTransaction::GetHash() const
 {
     return SerializeHash(*this);
+}
+
+void CMutableTransaction::Normalize() {
+     assert(vin.size() == vNormOutPoint.size());
+
+     for(unsigned int i=0; i<vin.size(); i++){
+         vin[i].prevout = vNormOutPoint[i];
+     }
 }
 
 void CTransaction::UpdateHash() const
@@ -92,9 +100,9 @@ const uint256 CTransaction::GetNormalizedHash() const
     }
 }
 
-CTransaction::CTransaction() : nVersion(CTransaction::CURRENT_VERSION), vin(), vout(), nLockTime(0) { }
+CTransaction::CTransaction() : nVersion(CTransaction::CURRENT_VERSION), vin(), vout(), nLockTime(0), vNormOutPoint() { }
 
-CTransaction::CTransaction(const CMutableTransaction &tx) : nVersion(tx.nVersion), vin(tx.vin), vout(tx.vout), nLockTime(tx.nLockTime) {
+CTransaction::CTransaction(const CMutableTransaction &tx) : nVersion(tx.nVersion), vin(tx.vin), vout(tx.vout), nLockTime(tx.nLockTime), vNormOutPoint(tx.vNormOutPoint) {
     UpdateHash();
 }
 

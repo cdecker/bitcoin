@@ -622,8 +622,11 @@ UniValue signrawtransaction(const UniValue& params, bool fHelp)
 
         BOOST_FOREACH(const CTxIn& txin, mergedTx.vin) {
             const uint256& prevHash = txin.prevout.hash;
-            CCoins coins;
-            view.AccessCoins(prevHash); // this is certainly allowed to fail
+            const CCoins* coins = view.AccessCoins(prevHash); // this is certainly allowed to fail
+
+            // Fill in the normalized outpoints so we can later normalize
+            const COutPoint out(coins != NULL && coins->nVersion >= 2 ? coins->normTxId : txin.prevout.hash, txin.prevout.n);
+            mergedTx.vNormOutPoint.push_back(out);
         }
 
         view.SetBackend(viewDummy); // switch back to avoid locking mempool for too long

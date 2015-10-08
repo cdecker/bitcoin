@@ -252,6 +252,7 @@ bool EvalScript(vector<vector<unsigned char> >& stack, const CScript& script, un
     valtype vchPushValue;
     vector<bool> vfExec;
     vector<valtype> altstack;
+    int vchChecksigexFlags;
     set_error(serror, SCRIPT_ERR_UNKNOWN_ERROR);
     if (script.size() > 10000)
         return set_error(serror, SCRIPT_ERR_SCRIPT_SIZE);
@@ -292,6 +293,14 @@ bool EvalScript(vector<vector<unsigned char> >& stack, const CScript& script, un
                 opcode == OP_LSHIFT ||
                 opcode == OP_RSHIFT)
                 return set_error(serror, SCRIPT_ERR_DISABLED_OPCODE); // Disabled opcodes.
+
+            // OP_CHECKSIGEX is followed by a bitfield containing the flags
+	    if (opcode == OP_CHECKSIGEX) {
+                if (stack.size() < 1)
+                    return set_error(serror, SCRIPT_ERR_INVALID_STACK_OPERATION);
+                vchChecksigexFlags = CScriptNum(stacktop(-1), fRequireMinimal).getint();
+                popstack(stack);
+            }
 
             if (fExec && 0 <= opcode && opcode <= OP_PUSHDATA4) {
                 if (fRequireMinimal && !CheckMinimalPush(vchPushValue, opcode)) {
@@ -379,7 +388,7 @@ bool EvalScript(vector<vector<unsigned char> >& stack, const CScript& script, un
                     break;
                 }
 
-                case OP_NOP1: case OP_NOP3: case OP_NOP4: case OP_NOP5:
+                case OP_NOP1: case OP_NOP3: case OP_NOP5:
                 case OP_NOP6: case OP_NOP7: case OP_NOP8: case OP_NOP9: case OP_NOP10:
                 {
                     if (flags & SCRIPT_VERIFY_DISCOURAGE_UPGRADABLE_NOPS)
@@ -964,7 +973,7 @@ bool EvalScript(vector<vector<unsigned char> >& stack, const CScript& script, un
                         //serror is set
                         return false;
                     }
-                    bool fSuccess = checker.CheckSig(vchSig, vchPubKey, scriptCode);
+                    bool fSuccess = checker.CheckSig(vchSig, vchPubKey, scriptCode, false);
 
                     popstack(stack);
                     popstack(stack);
@@ -1032,7 +1041,7 @@ bool EvalScript(vector<vector<unsigned char> >& stack, const CScript& script, un
                         }
 
                         // Check signature
-                        bool fOk = checker.CheckSig(vchSig, vchPubKey, scriptCode);
+                        bool fOk = checker.CheckSig(vchSig, vchPubKey, scriptCode, false);
 
                         if (fOk) {
                             isig++;
@@ -1225,8 +1234,13 @@ bool TransactionSignatureChecker::VerifySignature(const std::vector<unsigned cha
     return pubkey.Verify(sighash, vchSig);
 }
 
-bool TransactionSignatureChecker::CheckSig(const vector<unsigned char>& vchSigIn, const vector<unsigned char>& vchPubKey, const CScript& scriptCode) const
+bool TransactionSignatureChecker::CheckSig(const vector<unsigned char>& vchSigIn, const vector<unsigned char>& vchPubKey, const CScript& scriptCode, const bool fNormalize) const
 {
+    CMutableTransaction t(*txTo);
+    if (fNormalize) {
+        t.Normalize();
+    }
+    const CTransaction txTo2(t);
     CPubKey pubkey(vchPubKey);
     if (!pubkey.IsValid())
         return false;
@@ -1238,7 +1252,7 @@ bool TransactionSignatureChecker::CheckSig(const vector<unsigned char>& vchSigIn
     int nHashType = vchSig.back();
     vchSig.pop_back();
 
-    uint256 sighash = SignatureHash(scriptCode, *txTo, nIn, nHashType);
+    uint256 sighash = SignatureHash(scriptCode, txTo2, nIn, nHashType);
 
     if (!VerifySignature(vchSig, pubkey, sighash))
         return false;

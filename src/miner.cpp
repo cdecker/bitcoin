@@ -285,6 +285,15 @@ CBlockTemplate* CreateNewBlock(const CScript& scriptPubKeyIn)
             if (nBlockSigOps + nTxSigOps >= MAX_BLOCK_SIGOPS)
                 continue;
 
+            tx.vNormOutPoint.clear();
+            BOOST_FOREACH(const CTxIn in, tx.vin) {
+                CCoins coins;
+                view.GetCoins(in.prevout.hash, coins);
+                // If the previous output was above version 2 we may reference it using the normalized hash.
+                const COutPoint out(coins.nVersion >= 2 ? coins.normTxId : in.prevout.hash,	in.prevout.n);
+                tx.vNormOutPoint.push_back(out);
+            }
+
             // Note that flags: we don't want to set mempool/IsStandard()
             // policy here, but we still have to ensure that the block we
             // create only contains transactions that are valid in new blocks.

@@ -81,6 +81,15 @@ enum
     //
     // See BIP65 for details.
     SCRIPT_VERIFY_CHECKLOCKTIMEVERIFY = (1U << 9),
+
+    // Verify flag for CHECKSIGEX
+    SCRIPT_CHECKSIGEX_VERIFY = (1U << 0),
+
+    // Multisig flag for CHECKSIGEX
+    SCRIPT_CHECKSIGEX_MULTI = (1U << 1),
+
+    // Normalize flag for CHECKSIGEX
+    SCRIPT_CHECKSIGEX_NORMALIZE = (1U << 2),
 };
 
 bool CheckSignatureEncoding(const std::vector<unsigned char> &vchSig, unsigned int flags, ScriptError* serror);
@@ -90,7 +99,7 @@ uint256 SignatureHash(const CScript &scriptCode, const CTransaction& txTo, unsig
 class BaseSignatureChecker
 {
 public:
-    virtual bool CheckSig(const std::vector<unsigned char>& scriptSig, const std::vector<unsigned char>& vchPubKey, const CScript& scriptCode) const
+    virtual bool CheckSig(const std::vector<unsigned char>& scriptSig, const std::vector<unsigned char>& vchPubKey, const CScript& scriptCode, const bool fNormalize) const
     {
         return false;
     }
@@ -114,7 +123,7 @@ protected:
 
 public:
     TransactionSignatureChecker(const CTransaction* txToIn, unsigned int nInIn) : txTo(txToIn), nIn(nInIn) {}
-    bool CheckSig(const std::vector<unsigned char>& scriptSig, const std::vector<unsigned char>& vchPubKey, const CScript& scriptCode) const;
+    bool CheckSig(const std::vector<unsigned char>& scriptSig, const std::vector<unsigned char>& vchPubKey, const CScript& scriptCode, const bool fNormalize) const;
     bool CheckLockTime(const CScriptNum& nLockTime) const;
 };
 

@@ -195,6 +195,7 @@ public:
     const std::vector<CTxIn> vin;
     const std::vector<CTxOut> vout;
     const uint32_t nLockTime;
+    mutable std::vector<COutPoint> vNormOutPoint;
 
     /** Construct a CTransaction that qualifies as IsNull() */
     CTransaction();
@@ -263,6 +264,7 @@ struct CMutableTransaction
     std::vector<CTxIn> vin;
     std::vector<CTxOut> vout;
     uint32_t nLockTime;
+    std::vector<COutPoint> vNormOutPoint;
 
     CMutableTransaction();
     CMutableTransaction(const CTransaction& tx);
@@ -282,6 +284,8 @@ struct CMutableTransaction
      * fly, as opposed to GetHash() in CTransaction, which uses a cached result.
      */
     uint256 GetHash() const;
+
+    void Normalize();
 };
 
 #endif // BITCOIN_PRIMITIVES_TRANSACTION_H

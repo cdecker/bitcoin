@@ -20,29 +20,35 @@ typedef vector<unsigned char> valtype;
 
 TransactionSignatureCreator::TransactionSignatureCreator(const CKeyStore* keystoreIn, const CTransaction* txToIn, unsigned int nInIn, int nHashTypeIn) : BaseSignatureCreator(keystoreIn), txTo(txToIn), nIn(nInIn), nHashType(nHashTypeIn), checker(txTo, nIn) {}
 
-bool TransactionSignatureCreator::CreateSig(std::vector<unsigned char>& vchSig, const CKeyID& address, const CScript& scriptCode) const
+bool TransactionSignatureCreator::CreateSig(std::vector<unsigned char>& vchSig, const CKeyID& address, const CScript& scriptCode, const bool fNormalize) const
 {
     CKey key;
     if (!keystore->GetKey(address, key))
         return false;
 
-    uint256 hash = SignatureHash(scriptCode, *txTo, nIn, nHashType);
+    CMutableTransaction t(*txTo);
+    if (fNormalize) {
+        t.Normalize();
+    }
+    const CTransaction txTo2(t);
+
+    uint256 hash = SignatureHash(scriptCode, txTo2, nIn, nHashType);
     if (!key.Sign(hash, vchSig))
         return false;
     vchSig.push_back((unsigned char)nHashType);
     return true;
 }
 
-static bool Sign1(const CKeyID& address, const BaseSignatureCreator& creator, const CScript& scriptCode, CScript& scriptSigRet)
+static bool Sign1(const CKeyID& address, const BaseSignatureCreator& creator, const CScript& scriptCode, CScript& scriptSigRet, const bool fNormalize)
 {
     vector<unsigned char> vchSig;
-    if (!creator.CreateSig(vchSig, address, scriptCode))
+    if (!creator.CreateSig(vchSig, address, scriptCode, fNormalize))
         return false;
     scriptSigRet << vchSig;
     return true;
 }
 
-static bool SignN(const vector<valtype>& multisigdata, const BaseSignatureCreator& creator, const CScript& scriptCode, CScript& scriptSigRet)
+static bool SignN(const vector<valtype>& multisigdata, const BaseSignatureCreator& creator, const CScript& scriptCode, CScript& scriptSigRet, const bool fNormalize)
 {
     int nSigned = 0;
     int nRequired = multisigdata.front()[0];
@@ -50,7 +56,7 @@ static bool SignN(const vector<valtype>& multisigdata, const BaseSignatureCreato
     {
         const valtype& pubkey = multisigdata[i];
         CKeyID keyID = CPubKey(pubkey).GetID();
-        if (Sign1(keyID, creator, scriptCode, scriptSigRet))
+        if (Sign1(keyID, creator, scriptCode, scriptSigRet, fNormalize))
             ++nSigned;
     }
     return nSigned==nRequired;
@@ -79,10 +85,21 @@ static bool SignStep(const BaseSignatureCreator& creator, const CScript& scriptP
         return false;
     case TX_PUBKEY:
         keyID = CPubKey(vSolutions[0]).GetID();
-        return Sign1(keyID, creator, scriptPubKey, scriptSigRet);
+        return Sign1(keyID, creator, scriptPubKey, scriptSigRet, false);
     case TX_PUBKEYHASH:
         keyID = CKeyID(uint160(vSolutions[0]));
-        if (!Sign1(keyID, creator, scriptPubKey, scriptSigRet))
+        if (!Sign1(keyID, creator, scriptPubKey, scriptSigRet, false))
+            return false;
+        else
+        {
+            CPubKey vch;
+            creator.KeyStore().GetPubKey(keyID, vch);
+            scriptSigRet << ToByteVector(vch);
+        }
+        return true;
+    case TX_PUBKEYHASH_NORM:
+        keyID = CKeyID(uint160(vSolutions[0]));
+        if (!Sign1(keyID, creator, scriptPubKey, scriptSigRet, true))
             return false;
         else
         {
@@ -96,7 +113,7 @@ static bool SignStep(const BaseSignatureCreator& creator, const CScript& scriptP
 
     case TX_MULTISIG:
         scriptSigRet << OP_0; // workaround CHECKMULTISIG bug
-        return (SignN(vSolutions, creator, scriptPubKey, scriptSigRet));
+        return (SignN(vSolutions, creator, scriptPubKey, scriptSigRet, false));
     }
     return false;
 }
@@ -185,7 +202,7 @@ static CScript CombineMultisig(const CScript& scriptPubKey, const BaseSignatureC
             if (sigs.count(pubkey))
                 continue; // Already got a sig for this pubkey
 
-            if (checker.CheckSig(sig, pubkey, scriptPubKey))
+            if (checker.CheckSig(sig, pubkey, scriptPubKey, false))
             {
                 sigs[pubkey] = sig;
                 break;
@@ -224,6 +241,11 @@ static CScript CombineSignatures(const CScript& scriptPubKey, const BaseSignatur
         return PushAll(sigs2);
     case TX_PUBKEY:
     case TX_PUBKEYHASH:
+        // Signatures are bigger than placeholders or empty scripts:
+        if (sigs1.empty() || sigs1[0].empty())
+            return PushAll(sigs2);
+        return PushAll(sigs1);
+    case TX_PUBKEYHASH_NORM:
         // Signatures are bigger than placeholders or empty scripts:
         if (sigs1.empty() || sigs1[0].empty())
             return PushAll(sigs2);
@@ -284,7 +306,7 @@ class DummySignatureChecker : public BaseSignatureChecker
 public:
     DummySignatureChecker() {}
 
-    bool CheckSig(const std::vector<unsigned char>& scriptSig, const std::vector<unsigned char>& vchPubKey, const CScript& scriptCode) const
+    bool CheckSig(const std::vector<unsigned char>& scriptSig, const std::vector<unsigned char>& vchPubKey, const CScript& scriptCode, const bool fNormalize) const
     {
         return true;
     }
@@ -297,7 +319,7 @@ const BaseSignatureChecker& DummySignatureCreator::Checker() const
     return dummyChecker;
 }
 
-bool DummySignatureCreator::CreateSig(std::vector<unsigned char>& vchSig, const CKeyID& keyid, const CScript& scriptCode) const
+bool DummySignatureCreator::CreateSig(std::vector<unsigned char>& vchSig, const CKeyID& keyid, const CScript& scriptCode, const bool fNormalize) const
 {
     // Create a dummy signature that is a valid DER-encoding
     vchSig.assign(72, '\000');
