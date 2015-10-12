@@ -68,6 +68,7 @@ testScripts = [
     'decodescript.py',
     'p2p-fullblocktest.py',
     'blockchain.py',
+    'normtxtests.py',
 ]
 testScriptsExt = [
     'bipdersig-p2p.py',
