@@ -127,6 +127,7 @@ enum class SigVersion
 {
     BASE = 0,
     WITNESS_V0 = 1,
+    WITNESS_V1 = 2,
 };
 
 /** Signature hash sizes */

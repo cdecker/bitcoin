@@ -1210,7 +1210,7 @@ uint256 SignatureHash(const CScript& scriptCode, const CTransaction& txTo, unsig
 {
     assert(nIn < txTo.vin.size());
 
-    if (sigversion == SigVersion::WITNESS_V0) {
+    if (sigversion == SigVersion::WITNESS_V0 || sigversion == SigVersion::WITNESS_V1) {
         uint256 hashPrevouts;
         uint256 hashSequence;
         uint256 hashOutputs;
