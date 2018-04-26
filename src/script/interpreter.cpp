@@ -1214,16 +1214,23 @@ uint256 SignatureHash(const CScript& scriptCode, const CTransaction& txTo, unsig
         uint256 hashPrevouts;
         uint256 hashSequence;
         uint256 hashOutputs;
+        COutPoint prevout;
+        CScript script;
         const bool cacheready = cache && cache->ready;
+        const bool noinput = (sigversion == SigVersion::WITNESS_V1 && !!(nHashType & SIGHASH_NOINPUT));
 
-        if (!(nHashType & SIGHASH_ANYONECANPAY)) {
+        if (!(nHashType & SIGHASH_ANYONECANPAY) && !noinput) {
             hashPrevouts = cacheready ? cache->hashPrevouts : GetPrevoutHash(txTo);
         }
 
-        if (!(nHashType & SIGHASH_ANYONECANPAY) && (nHashType & 0x1f) != SIGHASH_SINGLE && (nHashType & 0x1f) != SIGHASH_NONE) {
+        if (!(nHashType & SIGHASH_ANYONECANPAY) && (nHashType & 0x1f) != SIGHASH_SINGLE && (nHashType & 0x1f) != SIGHASH_NONE && !noinput) {
             hashSequence = cacheready ? cache->hashSequence : GetSequenceHash(txTo);
         }
 
+        if (!noinput) {
+            prevout = txTo.vin[nIn].prevout;
+            script = scriptCode;
+	}
 
         if ((nHashType & 0x1f) != SIGHASH_SINGLE && (nHashType & 0x1f) != SIGHASH_NONE) {
             hashOutputs = cacheready ? cache->hashOutputs : GetOutputsHash(txTo);
@@ -1242,8 +1249,8 @@ uint256 SignatureHash(const CScript& scriptCode, const CTransaction& txTo, unsig
         // The input being signed (replacing the scriptSig with scriptCode + amount)
         // The prevout may already be contained in hashPrevout, and the nSequence
         // may already be contain in hashSequence.
-        ss << txTo.vin[nIn].prevout;
-        ss << scriptCode;
+        ss << prevout;
+        ss << script;
         ss << amount;
         ss << txTo.vin[nIn].nSequence;
         // Outputs (none/one/all, depending on flags)
